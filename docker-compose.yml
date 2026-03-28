@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: auth-post-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./auth/init.sql:/docker-entrypoint-initdb.d/01-auth.sql
+      - ./posts/init.sql:/docker-entrypoint-initdb.d/02-posts.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-app:
+    build: ./auth
+    container_name: auth-app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/auth_db
+      JWT_SECRET: "my_super_secret_jwt_key"
+      JWT_EXPIRATION_MINUTES: 30
+    depends_on:
+      db:
+        condition: service_healthy
+  
+  post-app:
+    build: ./posts
+    container_name: post-app
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/auth_db
+      JWT_SECRET: "my_super_secret_jwt_key"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
